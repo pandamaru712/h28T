@@ -1,0 +1,355 @@
+\documentclass[technicalreport]{ieicej}
+\usepackage[dvipdfmx]{graphicx}
+%\usepackage[draft]{graphicx}
+\usepackage{latexsym}
+\usepackage[fleqn]{amsmath}
+\usepackage[psamsfonts]{amssymb}
+\usepackage{bm}
+\usepackage{txfonts}
+\usepackage{booktabs}
+\usepackage[dvipdfmx]{color}
+\usepackage{comment}
+\usepackage{epsfig}
+\usepackage{subfig}
+
+\makeatletter
+
+\newcounter{flagFig}
+\setcounter{flagFig}{1}
+
+\newcommand{\argmax}{\mathop{\rm arg~max}\limits}
+\newcommand{\argmin}{\mathop{\rm arg~min}\limits}
+\newcommand{\sij}{(i,j)}
+\newcommand{\mN}{{\mathcal N}}
+\newcommand{\pij}{p^{(i,j)}}
+\newcommand{\rd}{r^{\sij}_{\rm d}}
+\newcommand{\ru}{r^{\sij}_{\rm u}}
+\newcommand{\rij}{r^{\sij}}
+\newcommand{\etau}{\eta_{\rm u}^{(j)}}
+\def\equiv{\mathrel{\mathop:}=}
+\newcommand{\sijk}{(i,j,k)}
+\newcommand{\pijk}{p^{(i,j,k)}}
+\newcommand{\rijk}{r^{(i,j,k)}}
+\newcommand{\mthc}{\mathcal C}
+\newcommand{\mthcd}{{\mathcal C}'}
+\newcommand{\mthni}{{\mathcal N}'_i}
+\newcommand{\mthnj}{{\mathcal N}'_j}
+\newcommand{\mthnk}{{\mathcal N}'_k}
+
+\renewcommand{\baselinestretch}{0.85}\selectfont %0.6まで大丈夫
+
+\begin{document}
+ab
+\clearpage
+
+\section{はじめに}
+無線LAN通信容量の向上にむけ，全二重通信無線LANを実現するMAC（Media Access Control）プロトコルの提案が多数行われている~\cite{fdmac,goyal,contra}．昨年度の報告書でも述べたとおり，全二重通信無線LANでは全二重通信の起点となる端末（プライマリセンダ）と同期して通信を行う端末（セカンダリセンダ）のフレーム長が時間的に揃っていることが望ましい．揃っていない場合，長い方のデータフレームの送信が完了するまで先に送信が完了した端末は待機せねばならず，その空き時間が無駄時間となってシステムスループットの低下を招く．しかし，既存のMACプロトコルであるFD-MAC方式~\cite{fdmac}では両者のデータフレーム時間長は揃っていると仮定されており，また他の全二重通信無線LAN向け自律分散型MACプロトコル~\cite{goyal, contra}においては時間長の差をビジートーンによって埋めるといった方法をとっている．この問題に対し，昨年度はセカンダリセンダにおいてフレーム時間長最適化を行うことを提案した．しかし，プライマリセンダのデータフレーム長は最大で1500\,Bであると仮定していた上，各端末への印加トラヒックも飽和であると仮定しており，非常に限定的な環境下での評価であった．
+\par
+本年度は，プライマリセンダがフレームアグリゲーションを用いてIEEE 802.11n規格の最大A-MSDU(Aggregate-MAC Service Data Unit)長である7935\,Bまでデータフレーム長を拡大できる場合を想定し，最適化方式を提案した．また，STAへの印加トラヒックが飽和のみならず，非飽和である場合においてもフレーム時間長最適化の効果をシミュレーションにより評価した．
+\par
+加えて，全二重通信無線LANにおける遅延時間に注目し，遅延時間の削減を目的として全二重通信と上り多元接続の組み合わせを提案した．一般的に，無線LANのトラヒックでは下り通信が支配的であり~\cite{traffic}，このような場合に全二重通信を用いると上り通信のデータフレームは下り通信のデータフレームより短くなる．一回の送信機会に必要な時間は長い方のデータフレームに依存するため，上り通信は下り通信の送信完了を待たなければならない．この問題に対して．全二重通信と上り多元接続の組み合わせを提案した．上り多元接続によって一回の送信機会に複数の端末が上り通信を同時に行うことで，上り通信の遅延時間を削減できる．本報告書では検討中の内容を報告する．
+\par
+本成果を国際会議APCC（Asia-Pacific Conference on Communications）において発表した~\cite{myapcc}．
+\section{全二重通信無線LAN\label{モデル}}
+	\subsection{全二重通信無線LANでのMACプロトコル}
+	\cite{fdmac}では従来のIEEE 802.11無線LANで用いられるRTS（Request to Send）/CTS（Clear to Send）を利用したFD-MAC方式によって全二重通信を実現する．このプロトコルは従来規格に対し後方互換性を保持しているという利点がある．まず，バックオフを最初に終えた端末がプライマリセンダとなりRTSをフレームを送信する．RTSフレームの宛先となった端末をセカンダリセンダと呼び，RTSフレームの受信後SIFS（Short Inter Frame Space）時間待ってCTSフレームをプライマリセンダに返送する．RTS，CTSフレームの交換により両者は同期を取り，その後，同時にデータフレームの送信を開始する．データフレームの送受信が完了した後，同時にACK（Acknowledgement）フレームの送信が行われる．図\ref{fig:fdmac}\subref{fig:fdbi}にセカンダリセンダの送信先がプライマリセンダである場合の通信手順を，図\ref{fig:fdmac}\subref{fig:fduni}にセカンダリセンダの送信先がプライマリセンダとは別の端末である場合の通信手順を示す．
+	\begin{figure}[t]
+		\centering
+		\subfloat[セカンダリセンダの送信先がプライマリセンダである場合]{
+		\epsfig{file=fig/fd-bi.eps, scale=0.7}
+		\label{fig:fdbi}
+		}
+		\\
+		\subfloat[セカンダリセンダの送信先がプライマリセンダとは別の端末である場合]{
+		\epsfig{file=fig/fd-uni.eps, scale=0.7}
+		\label{fig:fduni}
+		}
+		\caption{FD-MAC方式にける通信手順}
+		\label{fig:fdmac}
+	\end{figure}
+
+	\subsection{MACプロトコルの問題点\label{sec:problem}}
+	FD-MAC方式では，プライマリセンダとセカンダリセンダが送信するデータフレームの時間長が等しいと仮定しているが，実際のトラヒックでは
+	データフレームの時間長は異なる．したがって，この時間長の違いからチャネルが空いた半二重通信状態の時間が発生する．空き時間の発生はFD-MAC方式に限らず，自律分散方式によって制御されるMACプロトコル~\cite{goyal, contra}における共通の問題点である．この空き時間はデータフレームの送信が行われない無駄時間となり，システムスループットの低下を招く．
+	\par
+	例として，図\ref{fig:problem}にプライマリセンダのデータフレーム時間長がセカンダリセンダのそれよりも長いときの通信の様子を示す．本来全二重通信が可能であるにもかかわらず，セカンダリセンダのフレーム時間長が短いためにデータフレームの送信が行われない無駄時間が発生している．
+
+	\begin{figure}
+		\centering
+		\epsfig{file=fig/problem, scale=0.8}
+		\caption{自律分散型の全二重通信無線LAN向けMACプロトコルで生じる無駄時間}
+		\label{fig:problem}
+	\end{figure}
+
+\section{フレーム時間長最適化\label{sec:opt}}
+\ref{sec:problem}節において述べた無駄時間の発生によるシステムスループットの低下に対する解決策として，セカンダリセンダにおけるデータフレーム時間長の最適化を提案する．フレーム時間長最適化では，まず，プライマリセンダが送信するデータフレームの時間長をセカンダリセンダが算出する．次に，セカンダリセンダにおいて，自身が送信するデータフレームの時間長を先に算出した時間長に合わせてフレームアグリゲーションを用いて最適化を行う．以下，それぞれの手法について詳しく述べる．
+
+	\subsection{フレーム時間長の算出手法}
+	まず，フレーム時間長最適化を行うためには，セカンダリセンダがプライマリセンダのデータフレーム時間長を知る必要がある．そこで，セカンダリセンダはプライマリセンダが送信するRTSフレームに含まれるデュレーションフィールドの値から，プライマリセンダのデータフレーム時間長を算出する．RTSフレームのデュレーションフィールドには，
+	\begin{equation}
+		{\rm Duration\ value} = {\rm SIFS}\times 3 + T_{\rm CTS} + T_{\rm Data} + T_{\rm ACK}
+	\end{equation}
+	で表される値が格納されている．ただし，$T$はそれぞれのフレームを送信するのに必要な時間である．このデュレーションフィールドの値は，RTSフレームの送信終了時点からACKフレームの送信終了時点までに必要な時間を表している．CTS，ACKフレームは規格で定められた固有の長さを持つため，送信に用いる伝送速度が分かれば送信に必要な時間が得られる．以上より，デュレーションフィールドの値から3つのSIFS時間と，$T_{\rm CTS}$，$T_{\rm ACK}$を引くことでプライマリセンダのデータフレーム時間長$T_{\rm Data}$を算出できる．
+
+	\subsection{セカンダリセンダにおける最適化手法}
+	セカンダリセンダは前節の手法によって算出されたプライマリセンダが送信するデータフレームの時間長に対して，自身が送信するデータフレームの時間長をフレームアグリゲーションを用いて最適化する．最適化は，第一段階の粗い調整と第二段階の細かな調整の二段階に分けられる．これは，プライマリセンダの長いデータフレーム時間長に対してフレームアグリゲーションによる最適化を直接行うと，探索対象となるデータフレームの組み合わせ数が膨大となり，最適化に長時間を要してしまうからである．この最適化に要する時間を短縮するため，第一段階によって大まかにフレーム時間長を調整した後，第二段階によって残ったフレーム時間長の差を埋める．
+	\par
+	まず，第一段階ではセカンダリセンダは$m$個のデータフレームを自身のバッファの先頭から順に選び出す．$m$は以下の最適化問題を解くことによってに得られる．
+	\begin{align}
+		&\argmax_m &&L^{\rm f} = \sum_{i = 1}^{m} L_i \label{eq:step1}\\
+		&{\rm subject \ to} &&L^{\rm p} \geq \sum_{i = 1}^{m} L_i,
+	\end{align}
+	ただし，$L^{\rm f}$はこの第一段階で選ばれたデータフレームの合計の長さ，$L_i$はバッファの先頭から$i$番目のデータフレームの長さ，$L^{\rm p}$はプライマリセンダが送信するデータフレームの長さである．
+	\par
+	次に，セカンダリセンダは最適化の第二段階としてフレーム時間長の細かい調整を行う．セカンダリセンダは以下の最適化問題に従って，データフレームの集合${\mathcal F}^{\rm s}$を選び出す．
+	\begin{align}
+		&\qquad{\mathcal F}^{\rm s} = \argmin_{{\mathcal X}\subseteq{\mathcal F}} L^{\rm P}-L^{\rm f}-\sum_{i\in{\mathcal X}}L_i \label{eq:step2}\\
+		&{\rm subject\ to} \qquad|{\mathcal X}|\leq n_{\rm max}\\
+		&\qquad\qquad\qquad\;\; L^{\rm p}-L^{\rm f}-\sum_{i\in{\mathcal X}}L_i\geq 0
+	\end{align}
+	ただし，${\mathcal F}$は第一段階終了時にセカンダリセンダのバッファに残っているデータフレームの集合であり，$n_{\rm max}$は第二段階で用いることができるデータフレーム数の最大値である．図\ref{fig:opti}に最適化の様子を示す．まず，第一段階として式\eqref{eq:step1}より$m$を求め，バッファの先頭から$m$番目までのデータフレームを選び出す．次に，残った$m+1$番目以降のデータフレームの中から式\eqref{eq:step2}を解いて，$n_{\rm max}$個以下のデータフレームを選び出す．セカンダリセンダはこれら2つの段階によって選び出されたデータフレームをアグリゲーションによって1つのデータフレームに連結し，送信する．
+	\par
+	このフレーム時間長最適化に必要な時間は，第二段階の最適化問題を解くために必要な時間に大きく依存する．$n_{\rm max}$が大きいほど第二段階で選択できるデータフレーム数が多くなることから組み合わせの数が増え，より無駄時間を削減することができるが，計算量が増加し最適化問題を解くために必要な時間は指数的に増大する．フレーム時間長最適化はRTSフレームの受信完了時からデータフレームの送信開始時刻までに終える必要があるため，無駄時間の削減効果と計算時間を考慮して適切に$n_{\rm max}$を定める必要がある．
+
+	\begin{figure}[t]
+		\centering
+		\epsfig{file=fig/opti.eps, scale=0.7}
+		\caption{セカンダリセンダにおけるフレーム時間長最適化手法}
+		\label{fig:opti}
+	\end{figure}
+
+	\subsection{シミュレーション評価}
+		\subsubsection{シミュレーション諸元}
+		全二重通信に対応したAP（Accesss Point）とSTA（Station）が1台ずつ存在し，送信すべきデータフレームがある限り全二重通信によってデータフレームを送信するものとする．自己干渉キャンセルは十分に行われ，RTSフレームが衝突する場合を除いてすべてのフレームが正しく送受信されるものとする．AP，STAにはそれぞれフレーム到着率$\lambda_{\rm AP}$，$\lambda_{\rm STA}$（/s）のポアソン分布に従ってデータフレームが到着する．無線LANにおいてはAPからSTAへの下りトラヒックが支配的であることから，APのトラヒックは常に飽和していると仮定し，$\lambda_{\rm AP}=10^5$とする．各端末のMAC層に到着するパケットの大きさは~\cite{traffic}のパケット長分布を直線で近似した図\ref{fig:packet}の分布に従うものとする．フレームアグリゲーションにはIEEE 802.11nで定められたA-MSDUを用いるものとする．伝送速度は65\,Mbit/sとし，各端末のバッファサイズは200\,kBとする．その他のパラメータは11n規格に従うものとする．
+		\par
+		本シミュレーションでは，プライマリセンダの最大フレーム長を変化させた場合と，STAへのフレーム到着率$\lambda_{\rm STA}$を変化させた場合における各送信機会ごとの平均無駄時間とシステムスループットを求めた．
+		最適化による無駄時間の削減効果を示すため，また，$n_{\max}$が最適化に与える影響を示すために，最適化を第一段階でやめた場合，第二段階で選択されるデータフレーム数の最大値$n_{\max}$を1とした場合，第二段階で選択されるフレーム数に制限を設けない場合（$n_{\max}\to \infty$）について比較した．
+
+		\begin{figure}[t]
+			\centering
+			\epsfig{file=graph/traffic.eps, scale=0.5}
+			\caption{シミュレーションにおけるパケット長分布}
+			\label{fig:packet}
+		\end{figure}
+
+		\subsubsection{シミュレーション結果}
+		\begin{figure}[t]
+			\centering
+			\subfloat[平均無駄時間]{
+			\epsfig{file=graph/wst_max, scale=0.5}
+			\label{fig:wstmax}
+			}
+			\\
+			\subfloat[システムスループット]{
+			\epsfig{file=graph/thr_max, scale=0.5}
+			\label{fig:thrmax}
+			}
+			\caption{プライマリセンダの最大データフレーム長を変化させた場合}
+			\label{fig:max}
+		\end{figure}
+
+		図\ref{fig:max}\subref{fig:wstmax}，\subref{fig:thrmax}にプライマリセンダの最大データフレーム長を変化させた場合の平均無駄時間とシステムスループットを示す．第二段階で選択されるフレーム数の上限$n_{\rm max}$を1とした場合は，最適化を第一段階でやめた場合に比べ平均無駄時間を97\%削減し，その結果，システムスループットが最大で15\%向上した．
+		\par
+		一方で，第二段階で選択されるフレーム数$n_{\rm max}$に制限を設けない場合は，$n_{\rm max}=1$とした場合に比べ96\%平均無駄時間を削減しているものの，システムスループットはほとんど変わらない．これは，$n_{\rm max}=1$である場合の段階で平均無駄時間がOFDMシンボル単位である4\,$\mu$s以下にまで削減されており，第二段階で選択できるデータフレーム数を無制限としてもこれ以上セカンダリセンダがデータフレーム長を長く出来ないためである．
+		このことから，最適化に必要な時間を考慮すると，本シミュレーションの条件下では第二段階で選択されるデータフレーム数の上限$n_{\rm max}$は1で十分であることが分かる．
+		\par
+		\begin{figure}[t]
+			\centering
+			\subfloat[平均無駄時間]{
+			\epsfig{file=graph/wst_lmd, scale=0.5}
+			\label{fig:wstlmd}
+			}
+			\\
+			\subfloat[システムスループット]{
+			\epsfig{file=graph/thr_lmd, scale=0.5}
+			\label{fig:thrlmd}
+			}
+			\caption{STAのフレーム到着率$\lambda_{\rm STA}$を変化させた場合}
+			\label{fig:lmd}
+		\end{figure}
+		次に，図\ref{fig:lmd}\subref{fig:wstlmd}，\subref{fig:thrlmd}にSTAのフレーム到着率$\lambda_{\rm STA}$を変化させた場合の平均無駄時間とシステムスループットを示す．$\lambda_{\rm STA}>10^4$である場合は，プライマリセンダの最大データフレーム長を変化させた場合と同様に平均無駄時間が削減され，スループットが5\%向上した．
+		しかし，$\lambda_{\rm STA}<10^4$では平均無駄時間は削減されず，システムスループットは改善されなかった．これは，$\lambda_{\rm STA}$ではSTAへの印加トラヒックが少なく，最適化においてアグリゲーションするだけのデータフレームがバッファに存在していなかったためであると考えられる．
+
+\section{全二重通信と上り多元接続の組み合わせ\label{sec:ofdma}}
+本章では，全二重通信と上り多元接続を組み合わせることで，上り通信の遅延時間を削減することを検討する．
+	\subsection{背景}
+	無線LANのトラヒックでは下り通信が支配的であり，上り通信は下りTCP通信に対するTCP-ACKフレームなど細かなフレームが多い．このような状況で全二重通信無線LANを用いると，上り通信のデータフレームは同時に送信される下り通信のデータフレームより短くなる．すると，一回の送信機会が終了するのに必要な時間は下り通信のデータフレーム長によって決まるため，上り通信はデータフレームが短いにもかかわらず，毎回下り通信のデータフレームが送信完了するまで待機しなければならない．その結果，上り通信はデータフレームの短さから想定される遅延時間よりも大きな遅延を受けることとなる．そこで，遅延時間を削減するために全二重通信と上り多元接続を組み合わせることを提案する．
+
+	\begin{figure}
+		\centering
+		\epsfig{file=fig/fdofdma-model, scale=0.5}
+		\caption{全二重通信と上り多元接続を組み合わせた場合の通信モデル}
+		\label{fig:fdofdma-model}
+	\end{figure}
+
+	\begin{figure}[t]
+		\centering
+		\epsfig{file=fig/delay, scale=0.5}
+		\caption{全二重通信と上り多元接続による遅延時間の削減}
+		\label{fig:delay}
+	\end{figure}
+
+	\begin{figure}[t]
+		\centering
+		\subfloat[APが送信権を獲得した場合]{
+		\epsfig{file=fig/fdofdma-ap, scale=0.7}
+		\label{fig:fdofdma-ap}
+		}
+		\\
+		\subfloat[STAが送信権を獲得した場合]{
+		\epsfig{file=fig/fdmofma-sta, scale=0.7}
+		\label{fig:fdofdma-sta}
+		}
+		\caption{全二重通信とOFDMAの組み合わせにおける通信手順}
+		\label{fig:fdofdma-protocol}
+	\end{figure}
+
+	\subsection{提案方式\label{sec:pro_ofdma}}
+	図\ref{fig:fdofdma-model}に全二重通信と上り多元接続を組み合わせた場合の通信の様子をを示す．APに対して複数のSTA（Tx STAs）が多元接続によって上り通信を行っており，それと同時にAPは全二重通信によりRx STAに対して下り通信を行っている．図\ref{fig:delay}は全二重通信のみを用いた場合と全二重通信と上り多元接続を組み合わせた場合の遅延時間の差を比較した図である．ただし，データフレーム以外のフレームは省略している．全二重通信のみを用いた場合は，上り通信が先に終了しているにもかかわらず下り通信が完了するまで次の上り通信が待機させられている．一方，全二重通信と上り多元接続を組み合わせた場合は，一度に複数のSTAが多元的に上り通信を行うことで遅延時間が削減されていることが分かる．
+	上り多元接続にはOFDMA（Orthogonal Frequency Division Multiple Access），TDMA（Time Division Multiple Access），SDMA（Spatial Division Multiple Access）の使用が考えられる．
+	\par
+	全二重通信と上り多元接続の組み合わせを無線LANで実現するためには，APがどのSTAが上り多元接続に参加し，どのリソース（OFDMAであればチャネル，TDMAであればタイムスロット，SDMAであればストリーム）を使用するのかを決定，通知する必要があり，それらを実現するためには各STAのトラヒック状況のなどをAPが事前に収集しておく必要がある．
+		\subsubsection{拡張RTS，CTSフレーム}
+		提案方式では，データフレームの送受信開始前に従来のRTS，CTSフレームを拡張した拡張RTS，CTSフレームを用いて上り多元接続への参加許可やリソースの通知を行う．拡張RTSは，冒頭は従来のRTSフレームと同様の構造とし後方互換性を保ちつつ，後半に上り多元接続への参加を許可するTx STAsのIDと，それらのSTAが使用するリソース割当，情報収集のためのフラグを持つ．拡張CTSは，拡張RTSが持つ情報に加えて下り通信を受信するRx STAのIDを持つ．これは，Rx STAを受信待機状態にするためである．
+		\subsubsection{通信手順}
+		例として，図\ref{fig:fdofdma-protocol}に上り多元接続方式としてOFDMAを用いた場合を例として通信手順を示す．送信権の獲得は従来のCSMA/CA（Carrier Sense Multiple Access with Collision Avoidance）と同様のバックオフ制御によって行う．APが送信権を獲得した場合，拡張RTSフレームを下り通信を受信するRx STA宛に送信し，同時に通信に参加しないSTAをNAV状態にするとともに，上り多元接続への参加を許可するTx STAsのIDや使用するリソースの通知を行う．
+		Rx STAは拡張RTSフレームの受信後，SIFS時間後に従来のCTSフレームをAPに返送する．その後，APはRx STAへ下り通信を，Tx STAsは割り当てられたリソースを用いてAPへ上り通信を同時に開始する．
+		\par
+		STAが送信権を獲得した場合は，従来のRTSフレームをAPに送信し，APは拡張CTSを送信することでTx STAsに上り多元接続への参加を許可しリソースを割り当てる．同時に，Rx STAへ下り通信の宛先であることを通知し，Rx STAを受信待機状態にする．
+		\subsubsection{情報収集}
+		APが上り多元接続に参加するSTAを決定するためには，各STAが持つデータフレームの量やSTA同士の干渉関係を知っている必要がある．それらの情報を得るために，APは定期的に情報収集を行う．手順は前項で述べたデータフレームの送信手順と同様であるが拡張RTS，CTSフレームが持つ情報収集フラグをオンにすることでSTAにデータフレームの送信を中止させ，情報の送信を指示する．
+		\subsection{APにおける上り多元接続に参加するSTAの選択方式}
+		全二重通信と上り多元接続を組み合わせる場合，APからRx STAへの下り通信に対して上り通信が与える干渉が弱いことが望ましい．また，APへのデータフレームを持たないSTAに上り多元接続への参加を許可する必要はないので，選択されるTx STAsはAPへのデータフレームを持っていることが望ましい．これらの要求を満たすため，以下の方法によってAPは上り多元接続に参加するSTAを決定する．
+		\par
+		まず，APは前項で述べた方法によって各STAが持つフレーム量，干渉関係といった情報を予め収集しておく．APが送信権を獲得した場合は，APが送信するデータフレームの宛先をRx STAとし，そのRx STAに対して干渉が少ないSTAをTx STAsとする．
+		\par
+		STAが送信権を獲得した場合は，そのSTAが与える干渉が少なくなるようなSTAをRx STAとし，そのRx STAに与える干渉が少ないSTAと送信権を獲得したSTAをTx STAsとする．
+	\subsection{ネットワークシミュレータを用いた評価に向けた検討}
+	ここまでは遅延時間に注目して上り多元接続と組み合わせることを検討してきたが，STAがAPに送信するTCP-ACKの遅延時間が削減された場合，送信待機していた下りのTCPデータフレームの送信開始が早まるため，下りTCP通信のスループット改善も見込まれる．このTCP環境下におけるスループット改善効果を確かめるため，ネットワークシミュレータ「ns-3」を用いたシミュレーションの構築を開始した．全二重通信無線LANの既存MACプロトコル~\cite{tamaki}をns-3へ組み込んだ実装例~\cite{ns-3}をベースとして，全二重通信と上り多元接続の実装を目指す．ただし，本報告書執筆時点におけるns-3の最新バージョンは3.24.1であるが，~\cite{ns-3}が動作を保証しているバージョンが3.19であったため，本報告書でも3.19を使用している．
+		\subsubsection{ns-3とは}
+		ns-3はオープンソースであり，C++により記述された離散イベント駆動型ネットワークシミュレータである．ネットワーク機器の各構成要素に対応するクラスを持ち，物理層からデータリンク層，ネットワーク層，トランスポート層，アプリケーション層まで扱うことが可能である．シナリオファイルをOTCLスクリプト言語によって記述し，ns-3本体に読み込ませることでシミュレーションを実行する．
+		\subsubsection{ns-3におけるバグ}
+		ns-3におけるシミュレーションの初期段階として従来の半二重通信を用いたシミュレーションを行った．その過程において,
+		伝播損失モデルを対数距離伝搬損失モデルに設定すると通信可能な距離が極端に短くなるというバグを発見した．
+		ns-3では，無線電波の伝播損失モデルに対数距離伝搬損失モデルがデフォルト値として設定されているが，今回のシミュレーションでは伝搬損失モデルが対数距離伝搬損失モデルであることを明示的に示すことを目的として，シナリオファイルに対数距離伝搬損失モデルを使用することを記述した．その結果，通信可能な距離が回線設計によって想定される距離よりも大幅に短くなった．現時点でのこのバグに対する解決策は，デフォルトの対数距離伝搬損失モデルを使用する場合はシナリオファイルにそのことを記述しないことである．
+
+	\subsection{今後の方針}
+	本項では，全二重通信と上り多元接続について今後どのように検討を進めていくかについて述べる．
+		\subsubsection{先行研究}
+		全二重通信における端末選択や電力制御，伝送速度選択を検討した先行研究として~\cite{pro-mac}が挙げられる．\cite{pro-mac}では図\ref{fig:probab}のようにAPからの下り通信を受信するSTA $i$とAPへ上り通信を行うSTA $j$を確率的に選択した上で，STA $j$がSTA $i$に与える干渉を考慮してSTA $j$の送信電力制御，APが用いる伝送速度の選択を行う．以降，STA $i$が下り通信を受信しSTA $j$が上り通信を行う場合を$(i,j)\in{\mathcal C}$と表し，$i=0$の場合は上り通信のみの半二重通信，$j=0$の場合は下り通信のみの半二重通信とする．
+		\par
+		具体的には，まずAPは予め収集した各STAが使用可能な伝送速度$\gamma$とSINRから，すべての組み合わせ$(i,\ j)$に対して実効スループット$r^{(i,j)}$を求める．
+		求めた$r^{(i,j)}$を用いて以下の最適化問題を解き，各組み合わせ$(i,j)$が送信を行う確率$p^{(i,j)}$を求める．
+		\begin{align}
+			&{\mathcal P}: &&\max \sum_{(i,\ j)\in{\mathcal C}}p^{(i,j)}r^{(i,j)} \label{eq:saiteki}\\
+			&{\rm variables}: &&p^{(i,j)} \in {\mathbb R}_{\geq 0},\ \forall(i,j)\in{\mathcal C}
+		\end{align}
+		ただし，最適化における制約条件は省略している．
+		これによって求められた確率$p^{(i,j)}$をAPはビーコンフレームに乗せて各STAに通知する．STA $i$が下り通信に選択される確率は，$p_d^{(i)}=\sum_{j}p^{(i,j)}$であり，APは$p_d^{(i)}$に従って下り通信の宛先を決定する．
+		一方，上り通信を行うTx STAsは,${\rm CW}_u^{(i,j)}=\lceil 1/p_u^{(i,j)}\rceil$で求められるCW（Conteneion Window）を用いてバックオフ制御を行うことで決定される．
+		ただし，$p_u^{(i,j)}= p^{(i,j)}/p_d^{(i)}$である．
+		以上の方法によって選択された$(i,j)$に対して，次に送信電力制御，伝送速度選択が行われる．
+		STA $j$はSTA $i$に与える干渉を$\delta$以下となるように送信電力を制御する．
+		これによって，APからSTA $i$への下り半二重通信時のSNR$_d$を用いて，AP，STA $i$，$j$による全二重通信におけるSTA $i$でのSINR$_d$が${\rm SINR}_d \geq {\rm SNR}_d - \delta$で保証される．
+		このことを利用して，APは下り通信で使用する伝送速度を決定する．
+
+		\begin{comment}
+			&{\rm subject\ to} &&\sum_{j\in\{j:(i,j)\in{\mathcal C}\}} p^{(i,j)}\geq\eta_d^{(i)} \\
+			&&&\sum_{i\in\{i:(i,j)\in{\mathcal C}\}} p^{(i,j)}\geq\eta_u^{(j)} \\
+			&&&\sum_{(i,j)\in{\mathcal C}} p^{(i,j)}=1 \\
+
+			\begin{equation}
+				p_d^{(i)}=\sum_{j}p^{(i,j)}
+			\end{equation}
+
+			\begin{align}
+				p_u^{(i,j)} &= p^{(i,j)}/p_d^{(i)} \\
+				{\rm CW}_u^{(i,j)} &=\lceil 1/p_u^{(i,j)}\rceil
+			\end{align}
+
+			\begin{equation}
+				{\rm SINR}_d \geq {\rm SNR}_d - \delta
+			\end{equation}
+			上式によりSINR$_d$の最低値が保証されている
+		\end{comment}
+
+		\subsubsection{アプローチ}
+		\cite{pro-mac}では全二重通信に対して，確率的に端末選択を行い，送信電力制御，伝送速度選択を行う．
+		今後の研究方針として，まずはこの手法を全二重通信と上り多元接続に適応可能なものへと拡張を行う．
+		その上で，最適化の目的関数を変更することを考える．
+		\cite{pro-mac}では式\eqref{eq:saiteki}から分かるように，システムスループットを最大化することを目的としているが，上り多元接続との組み合わせでは\ref{sec:pro_ofdma}項で述べた通り遅延時間の削減が期待できるため，目的関数に遅延時間を含めることが考えられる．
+		特に，システムにおける平均遅延時間の最小化や各STAごとの遅延時間の公平性最大化を目的関数として最適化問題を解くことが，上り多元接続の遅延時間の削減といった特性を活かした端末選択に繋がるのではないかと考えられる．
+
+		\begin{figure}[t]
+			\centering
+			\epsfig{file=fig/probab, scale=0.5}
+			\caption{\cite{pro-mac}を用いた端末選択，送信電力制御，伝送速度選択}
+			\label{fig:probab}
+		\end{figure}
+\section{まとめ}
+\ref{sec:opt}章では，プライマリセンダのフレーム最大長を拡大した場合や，トラヒックが非飽和である場合におけるフレーム時間長最適化の評価を行った．データフレーム長が長くともフレーム時間長最適化によって大きく無駄時間を削減することができ，システムスループットが向上することが確かめられた．一方で，トラヒックが非飽和である場合は最適化に用いるためのデータフレームが十分にバッファに存在しないため，最適化の余地がなく，無駄時間の削減効果は減少した．
+\par
+\ref{sec:ofdma}章では，全二重通信と上り多元接続を組み合わせるによる遅延時間の削減を目的とし，それを実現するための通信手順や端末検定方式の検討を行った．さらに，端末選択手法に関する先行研究を示し，今後の方針について述べた．
+
+\begin{comment}
+\bibliographystyle{sieicej}
+\bibliography{main2}
+\end{comment}
+
+\begin{thebibliography}{1}
+
+\bibitem{fdmac}
+M. Duarte et~al.,
+``Design and characterization of a full-duplex multiantenna system for {WiFi}
+  networks,''
+{IEEE} Trans.\ Veh.\ Technol.,
+vol.63, no.3, pp.1160--1177, Mar. 2014.
+
+\bibitem{goyal}
+S. Goyal et~al.,
+``A distributed mac protocol for full duplex radio,''
+IEEE Asilomar Conf.\ Signals, Systems and Computers,
+pp.788--792,
+Pacific Grove, CA, Nov. 2013.
+
+\bibitem{contra}
+N. Singh et~al.,
+``Efficient and fair {MAC} for wireless networks with self-interference
+  cancellation,''
+Proc.\ {WiOpt},
+pp.94--101,
+Princeton, NJ, USA, May 2011.
+
+\bibitem{traffic}
+F. Wamseret et~al.,
+``Traffic characterization of a residential wireless {I}nternet access,''
+Telecommunication Systems,
+vol.48, no.1-2, pp.5--17, Oct. 2011.
+
+\bibitem{myapcc}
+N. Iida et~al.,
+``Frame length optimization for in-band full-duplex wireless {LAN}s,''
+Proc.\ APCC,
+pp.354--358,
+Kyoto, Japan, Oct. 2015.
+
+\bibitem{tamaki}
+K. Tamaki et~al.,
+``Full duplex media access control for wireless multi-hop networks,''
+Proc.\ IEEE Veh.\ Tech.\ Conf.,
+pp.1--5,
+Dresden, June 2013.
+
+\bibitem{ns-3}
+``ns-3への全二重通信の実装''． http://sdlabo.org/
+
+\bibitem{pro-mac}
+S.C. Chen et~al.,
+``Probabilistic-based adaptive full-duplex and half-duplex medium access
+  control,''
+Proc.\ {IEEE} Globecom,
+pp.1--6, 2015.
+
+\end{thebibliography}
+
+\end{document}
